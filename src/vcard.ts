@@ -220,10 +220,6 @@ vCard.prototype = {
         `Invalid vCard: Expected "VERSION:\\d.\\d" but none found`
       );
 
-    // fails on parse multiple vCards from one file bc this is undefined
-
-    if (this == null) console.log("this is undefined!!!");
-
     this.version = version.substring(8, 11);
 
     if (!vCard.isSupported(this.version))

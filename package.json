@@ -44,6 +44,7 @@
   "scripts": {
     "test": "mocha --ui tdd",
     "benchmark": "matcha",
-    "build": "npx swc src -d lib"
+    "build": "npx swc src -d lib",
+    "preinstall": "npx run build"
   }
 }
