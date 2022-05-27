@@ -9,7 +9,7 @@
     "jcard",
     "vcf"
   ],
-  "main": "lib/vcard.js",
+  "main": "lib/vcard",
   "author": {
     "name": "Jonas Hermsmeier",
     "email": "jhermsmeier@gmail.com",
@@ -44,7 +44,6 @@
   "scripts": {
     "test": "mocha --ui tdd",
     "benchmark": "matcha",
-    "build": "npx swc lib -d dist",
-    "start": "node dist/vcard.js"
+    "build": "npx swc src -d lib"
   }
 }

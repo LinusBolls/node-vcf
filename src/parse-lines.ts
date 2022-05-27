@@ -2,7 +2,7 @@ import camelCase from "camelcase";
 
 import Property from "./property";
 
-type val = string | typeof Property;
+import type { val } from "./types";
 
 function set(object: { [key: string]: val | val[] }, key: string, value: val) {
   if (Array.isArray(object[key])) {
@@ -50,7 +50,7 @@ function parseLines(lines: any[]) {
 
   const pattern = /^([^;:]+)((?:;(?:[^;:]+))*)(?:\:([\s\S]+))?$/i;
 
-  for (const line of lines) {
+  for (const line of lines.slice(1, -1)) {
     const match = pattern.exec(line);
 
     if (!match) continue;
@@ -63,7 +63,7 @@ function parseLines(lines: any[]) {
 
     const propParams = params.reduce(createParams, group ? { group } : {});
     const propName = camelCase(property);
-    const propVal = Property(propName, value, propParams);
+    const propVal = new Property(propName, value, propParams);
 
     set(data, propName, propVal);
   }

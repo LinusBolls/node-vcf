@@ -1,8 +1,10 @@
+import type { IProperty } from "./types";
+
 /**
  * vCard Property
  */
-function Property(field: string, value = "", params = null): typeof Property {
-  if (!(this instanceof Property)) return Property(value);
+function Property(field: string, value: string = null, params = null): void {
+  if (!(this instanceof Property)) return new Property(value);
 
   if (params != null) Object.assign(this, params);
 
@@ -16,7 +18,7 @@ function Property(field: string, value = "", params = null): typeof Property {
 /**
  * Constructs a vCard.Property from jCard data
  */
-Property.fromJSON = function (data: any[]): typeof Property {
+Property.fromJSON = function (data: any[]): IProperty {
   const field = data[0];
   const params = data[1];
 
@@ -24,7 +26,7 @@ Property.fromJSON = function (data: any[]): typeof Property {
 
   const value = Array.isArray(data[3]) ? data[3].join(";") : data[3];
 
-  return Property(field, value, params);
+  return new Property(field, value, params);
 };
 
 /**
@@ -60,8 +62,8 @@ Property.prototype = {
   /**
    * Clone the property
    */
-  clone: function (): typeof Property {
-    return Property(this._field, this._data, this);
+  clone: function (): IProperty {
+    return new Property(this._field, this._data, this);
   },
 
   /**
@@ -70,8 +72,9 @@ Property.prototype = {
   toString: function (version: string): string {
     const propName =
       (this.group ? this.group + "." : "") + capitalDashCase(this._field);
+
     const keys = Object.keys(this);
-    const params = [];
+    let params = [];
 
     for (const key of keys) {
       if (key === "group") continue;
@@ -89,23 +92,18 @@ Property.prototype = {
           params.push(capitalDashCase(key) + "=" + this[key]);
       }
     }
+    const joinedParams = params.length
+      ? ";" + params.join(";")
+      : params.toString();
+
+    const ending = Array.isArray(this._data)
+      ? this._data.join(";")
+      : this._data;
 
     if (version === "2.1" || version === "3.0")
-      return (
-        propName +
-        (params.length
-          ? ";" + params.join(";").toUpperCase()
-          : params.toString().toUpperCase()) +
-        ":" +
-        (Array.isArray(this._data) ? this._data.join(";") : this._data)
-      );
-    else
-      return (
-        propName +
-        (params.length ? ";" + params.join(";") : params) +
-        ":" +
-        (Array.isArray(this._data) ? this._data.join(";") : this._data)
-      );
+      return propName + joinedParams.toUpperCase() + ":" + ending;
+
+    return propName + joinedParams + ":" + ending;
   },
 
   /**

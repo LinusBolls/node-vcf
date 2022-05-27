@@ -4,50 +4,31 @@ import Property from "./property";
 
 import parseLines from "./parse-lines";
 
-type Params = { [key: string]: any };
-type JCard = any[];
+import type { IParams, IProperty, IVCard, IJCard } from "./types";
 
 /**
  * vCard
  */
-function vCard() {
-  if (!(this instanceof vCard)) return vCard();
+function vCard(): void {
+  if (!(this instanceof vCard)) return new vCard();
 
-  /** @type {String} Version number */
-  this.version = vCard.versions[vCard.versions.length - 1];
-  /** @type {Object} Card data */
+  const [lastVersion] = vCard.versions.slice(-1);
+
+  this.version = lastVersion;
   this.data = {};
 }
-
-/**
- * vCard MIME type
- */
 vCard.mimeType = "text/vcard";
-
-/**
- * vCard file extension
- */
 vCard.extension = ".vcf";
-
-/**
- * vCard versions
- */
 vCard.versions = ["2.1", "3.0", "4.0"];
-
-/**
- * VCF EOL character sequence
- */
 vCard.EOL = "\r\n";
 
 /**
  * Folds a long line according to the RFC 5322.
  * @see http://tools.ietf.org/html/rfc5322#section-2.1.1
- * @param  {String}  input
- * @param  {Number}  maxLength
- * @param  {Boolean} hardWrap
- * @return {String}
  */
 vCard.foldLine = foldLine;
+vCard.Property = Property;
+vCard.parseLines = parseLines;
 
 /**
  * Normalizes input (cast to string, line folding, whitespace)
@@ -74,47 +55,44 @@ vCard.isSupported = function (version: string): boolean {
 /**
  * Parses a string or buffer into a vCard object
  */
-vCard.parse = function (value: String | Buffer): typeof vCard[] {
-  const objects = (value + "").split(/(?=BEGIN\:VCARD)/gi);
+vCard.parse = function (value: String | Buffer): IVCard[] {
+  const objects = value.toString().split(/(?=BEGIN\:VCARD)/gi);
 
-  const cards = objects.map(vCard().parse);
+  let cards = [];
 
+  for (const obj of objects) {
+    cards.push(new vCard().parse(obj));
+  }
   return cards;
 };
 
 /**
- * Parse an array of vcf formatted lines
- */
-vCard.parseLines = parseLines;
-
-/**
  * Constructs a vCard from jCard data
  */
-vCard.fromJSON = function (jcard: JCard): typeof vCard {
+vCard.fromJSON = function (jcard: IJCard): IVCard {
   jcard = typeof jcard === "string" ? JSON.parse(jcard) : jcard;
 
-  if (jcard == null || !Array.isArray(jcard)) return vCard();
+  if (jcard == null || !Array.isArray(jcard)) return new vCard();
 
   if (!/vcard/i.test(jcard[0])) throw new Error("Object not in jCard format");
 
-  const card = vCard();
+  const card = new vCard();
 
-  jcard[1].forEach(function (prop) {
+  for (const prop of jcard[1]) {
     card.addProperty(vCard.Property.fromJSON(prop));
-  });
-
+  }
   return card;
 };
 
 /**
  * Format a card object according to the given version
  */
-vCard.format = function (card: typeof vCard, version: string): string {
+vCard.format = function (card: IVCard, version: string): string {
   version =
     version || card.version || vCard.versions[vCard.versions.length - 1];
 
   if (!vCard.isSupported(version))
-    throw new Error('Unsupported vCard version "' + version + '"');
+    throw new Error(`Unsupported vCard version "${version}"`);
 
   const vcf = [];
 
@@ -126,24 +104,22 @@ vCard.format = function (card: typeof vCard, version: string): string {
   for (let prop of props) {
     if (prop === "version") continue;
 
-    prop = card.data[prop];
+    const prevProp: IProperty = card.data[prop];
 
-    if (Array.isArray(prop)) {
-      for (let k = 0; k < prop.length; k++) {
-        if (prop[k].isEmpty()) continue;
-        vcf.push(vCard.foldLine(prop[k].toString(version), 75));
+    if (Array.isArray(prevProp)) {
+      for (const ding of prevProp) {
+        if (ding.isEmpty()) continue;
+
+        vcf.push(vCard.foldLine(ding.toString(version), 75, false));
       }
-    } else if (!prop.isEmpty()) {
-      vcf.push(vCard.foldLine(prop.toString(version), 75));
+    } else if (!prevProp.isEmpty()) {
+      vcf.push(vCard.foldLine(prevProp.toString(version), 75, false));
     }
   }
   vcf.push("END:VCARD");
 
   return vcf.join(vCard.EOL);
 };
-
-// vCard Property constructor
-vCard.Property = Property;
 
 /**
  * vCard prototype
@@ -172,15 +148,15 @@ vCard.prototype = {
   /**
    * Set a vCard property
    */
-  set: function (key: string, value: string, params: Params) {
-    return this.setProperty(vCard.Property(key, value, params));
+  set: function (key: string, value: string, params: IParams) {
+    return this.setProperty(new vCard.Property(key, value, params));
   },
 
   /**
    * Add a vCard property
    */
-  add: function (key: string, value: string, params: Params) {
-    const prop = vCard.Property(key, value, params);
+  add: function (key: string, value: string, params: IParams) {
+    const prop = new vCard.Property(key, value, params);
     this.addProperty(prop);
     return this;
   },
@@ -188,10 +164,10 @@ vCard.prototype = {
   /**
    * Set a vCard property from an already
    * constructed vCard.Property
-   * @param {vCard.Property} prop
    */
-  setProperty: function (prop) {
+  setProperty: function (prop: IProperty) {
     this.data[prop._field] = prop;
+
     return this;
   },
 
@@ -199,16 +175,20 @@ vCard.prototype = {
    * Add a vCard property from an already
    * constructed vCard.Property
    */
-  addProperty: function (prop: typeof Property) {
+  addProperty: function (prop: IProperty) {
     const key = prop._field;
 
     if (Array.isArray(this.data[key])) {
       this.data[key].push(prop);
-    } else if (this.data[key] != null) {
-      this.data[key] = [this.data[key], prop];
-    } else {
-      this.data[key] = prop;
+
+      return this;
     }
+    if (this.data[key] != null) {
+      this.data[key] = [this.data[key], prop];
+
+      return this;
+    }
+    this.data[key] = prop;
 
     return this;
   },
@@ -216,43 +196,38 @@ vCard.prototype = {
   /**
    * Parse a vcf formatted vCard
    */
-  parse: function (value: string): typeof vCard {
+  parse: function (value: string): IVCard {
     // Normalize & split
     const lines = vCard.normalize(value).split(/\r\n/g);
+    const version = getVersion(lines);
 
-    // Keep begin and end markers
-    // for eventual error messages
+    // Keep begin and end markers for eventual error messages
     const begin = lines[0];
-    let version = lines[1];
     const end = lines[lines.length - 1];
-
-    // Multiple used RegExp's
-    const regexp_version = /VERSION:\d\.\d/i;
 
     if (!/BEGIN:VCARD/i.test(begin))
       throw new SyntaxError(
-        'Invalid vCard: Expected "BEGIN:VCARD" but found "' + begin + '"'
+        `Invalid vCard: Expected "BEGIN:VCARD" but found "${begin}"`
       );
 
     if (!/END:VCARD/i.test(end))
       throw new SyntaxError(
-        'Invalid vCard: Expected "END:VCARD" but found "' + end + '"'
+        `Invalid vCard: Expected "END:VCARD" but found "${end}"`
       );
 
-    if (!regexp_version.test(version)) {
-      // VERSION mostly follows BEGIN, but it has only mandatory follow BEGIN, for version 4.0
-      // Let's do the more expensive lookup for the lesser used version constiant
-      if (!(version = lines.find((line) => regexp_version.test(line))))
-        throw new SyntaxError(
-          'Invalid vCard: Expected "VERSION:\\d.\\d" but none found'
-        );
-      // TODO: Do we need to throw an error if version = 4.0 or != 3.0|2.1? (because not followed BEGIN)?
-    }
+    if (version == null)
+      throw new SyntaxError(
+        `Invalid vCard: Expected "VERSION:\\d.\\d" but none found`
+      );
+
+    // fails on parse multiple vCards from one file bc this is undefined
+
+    if (this == null) console.log("this is undefined!!!");
 
     this.version = version.substring(8, 11);
 
     if (!vCard.isSupported(this.version))
-      throw new Error('Unsupported version "' + this.version + '"');
+      throw new Error(`Unsupported vCard version "${this.version}"`);
 
     this.data = vCard.parseLines(lines);
 
@@ -270,33 +245,47 @@ vCard.prototype = {
   /**
    * Format the card as jCard
    */
-  toJCard: function (version: string): JCard {
+  toJCard: function (version: string): IJCard {
     version = version || "4.0";
 
     const keys = Object.keys(this.data);
     const data = [["version", {}, "text", version]];
-    let prop = null;
 
-    for (let i = 0; i < keys.length; i++) {
-      if (keys[i] === "version") continue;
-      prop = this.data[keys[i]];
+    for (const key of keys) {
+      if (key === "version") continue;
+
+      const prop = this.data[key];
+
       if (Array.isArray(prop)) {
-        for (let k = 0; k < prop.length; k++) {
-          data.push(prop[k].toJSON());
+        for (const k of prop) {
+          data.push(k.toJSON());
         }
       } else {
         data.push(prop.toJSON());
       }
     }
-
     return ["vcard", data];
   },
 
   /**
    * Format the card as jCard
    */
-  toJSON: function (): JCard {
+  toJSON: function (): IJCard {
     return this.toJCard(this.version);
   },
 };
-export default vCard;
+// export default vCard;
+module.exports = vCard;
+
+function getVersion(lines: string[]): string | undefined {
+  // VERSION mostly follows BEGIN, but it has only mandatory follow BEGIN, for version 4.0
+  // Let's do the more expensive lookup for the lesser used version constiant
+
+  // TODO: Do we need to throw an error if version = 4.0 or != 3.0|2.1? (because not followed BEGIN)?
+
+  const regexp_version = /VERSION:\d\.\d/i;
+
+  if (regexp_version.test(lines[1])) return lines[1];
+
+  return lines.find((i) => regexp_version.test(i));
+}

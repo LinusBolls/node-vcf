@@ -1,17 +1,18 @@
-var vCard = require( '..' )
-var fs = require( 'fs' )
-var util = require( 'util' )
-var argv = process.argv.slice( 2 )
+const { readFileSync } = require("fs");
+const util = require("util");
 
-function inspect( value ) {
-  return util.inspect( value, {
-    colors: process.stdout.isTTY,
-    depth: null,
-  })
-}
+const vCard = require("..");
 
-var filename = argv.shift()
-var data = fs.readFileSync( filename )
-var card = new vCard().parse( data )
+const argv = process.argv.slice(2);
 
-console.log( inspect( card ) )
+const inspectOptions = {
+  colors: process.stdout.isTTY,
+  depth: null,
+};
+const inspect = (value) => util.inspect(value, inspectOptions);
+
+const filename = argv.shift();
+const data = readFileSync(filename);
+const card = new vCard().parse(data);
+
+console.log(inspect(card));
